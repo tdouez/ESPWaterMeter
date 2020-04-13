@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fr">
+    
+<head>
+    <title>WaterMeter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"charset="UTF-8" />
+    <link rel="stylesheet" type="text/css" href="w3.css">
+    <script type="text/javascript" src="jquery.js"></script>
+    <script type="text/javascript" src="script.js"></script>
+    <script type="text/javascript" src="notify.js"></script>
+</head>
+  
+<body class="w3-animate-opacity">
+
+    <!-- Entete et menu -->
+    <div class="w3-card w3-blue w3-padding-small w3-center">
+         <h1>WaterMeter</h1><span id="version">v0.00</span>
+    </div>
+    <div class="w3-card w3-light-blue">
+       <button class="w3-bar-item w3-button" onclick="openMenu('info')">Info</button>
+       <button class="w3-bar-item w3-button" onclick="openMenu('config')">Config</button>
+   </div>
+
+    <!-- Configuration -->
+    <div id="config" class="w3-margin w3-card menu" style="display:none">
+        <div class="w3-container w3-text-blue">
+            <h1>Configuration</h1>
+        </div>
+        <form id="form_config" class="w3-container w3-padding">
+            <div class="w3-panel w3-border">
+                <p>
+                    <label class="w3-text-blue"><b>Nom Module</b></label>
+                    <input class="w3-input w3-border" type="text" name="module_name" id="module_name" maxlength="32" value="" style="width:40%;">
+                </p>
+            </div>
+            <div class="w3-panel w3-border">  
+                <p>
+                    <label class="w3-text-blue"><b>Nombre impulsions/m3</b></label>
+                    <input class="w3-input w3-border" type="number" name="pulse_factor" id="pulse_factor" min="1" max="10000" value="1234" style="width:40%;">
+                    <label class="w3-text-blue"><b>Seuil fuite - litres/jour</b></label>
+                    <input class="w3-input w3-border" type="number" name="leak_threshold" id="leak_threshold" min="1" max="100000" value="123" style="width:40%;">
+                </p>
+            </div>
+            <div class="w3-panel w3-border"> 
+                <p>
+                    <label class="w3-text-blue"><b>Serveur MQTT</b></label>
+                    <input class="w3-input w3-border" type="text" name="url_mqtt" id="url_mqtt" maxlength="64" value="" style="width:40%;">
+                    <label class="w3-text-blue"><b>Token MQTT</b></label>
+                    <input class="w3-input w3-border" type="text" name="token_mqtt" id="token_mqtt" maxlength="32" value="" style="width:40%;">
+                    <label class="w3-text-blue"><b>Port MQTT</b></label>
+                    <input class="w3-input w3-border" type="number" name="port_mqtt" id="port_mqtt" min="1" max="65535" value="1883" style="width:40%;">
+                    <label class="w3-text-blue"><b>User MQTT</b></label>
+                    <input class="w3-input w3-border" type="text" name="user_mqtt" id="user_mqtt" maxlength="32" value="" style="width:40%;">
+                    <label class="w3-text-blue"><b>Password MQTT</b></label>
+                    <input class="w3-input w3-border" type="text" name="pwd_mqtt" id="pwd_mqtt" maxlength="32" value="" style="width:40%;">
+                </p>
+            </div>
+            <div class="w3-panel w3-border">
+                <p>
+                    <label class="w3-text-blue"><b>Temps mise à jour (sec)</b></label>
+                    <input class="w3-input w3-border" type="text" name="tps_maj" id="tps_maj" min="1" max="3200" value="3" style="width:40%;">
+                </p>
+            </div>
+            <div class="w3-panel w3-green" id="p_info_config" style="display:none"><span id="t_info_config"></span></div>
+            <div class="w3-panel w3-red" id="p_erreur_config" style="display:none"><span id="t_erreur_config"></span></div>
+        </form>
+        <button onclick="savButton()" class="w3-btn w3-blue w3-border">Sauvegarde</button> 
+    </div>
+
+    <!-- Information -->
+    <div id="info" class="w3-margin w3-card menu">
+        <div class="w3-container w3-text-blue">
+            <h1>Information</h1>
+        </div>
+        <div class="w3-padding"></h3>Historique impulsions sur 24h: <span id="totalPulse" class="w3-badge w3-green">0</span></div>
+        <div class="w3-container w3-padding">
+            <table class="w3-table w3-small w3-responsive">
+                <tr class="w3-light-blue">
+                  <th>0</th>
+                  <th>1</th>
+                  <th>2</th>
+                  <th>3</th>
+                  <th>4</th>
+                  <th>5</th>
+                  <th>6</th>
+                  <th>7</th>
+                  <th>8</th>
+                  <th>9</th>
+                  <th>10</th>
+                  <th>11</th>
+                  <th>12</th>
+                  <th>13</th>
+                  <th>14</th>
+                  <th>15</th>
+                  <th>16</th>
+                  <th>17</th>
+                  <th>18</th>
+                  <th>19</th>
+                  <th>20</th>
+                  <th>21</th>
+                  <th>22</th>
+                  <th>23</th>
+                </tr>
+                <tr>
+                    <td id="h0"></td>
+                    <td id="h1"></td>
+                    <td id="h2"></td>
+                    <td id="h3"></td>
+                    <td id="h4"></td>
+                    <td id="h5"></td>
+                    <td id="h6"></td>
+                    <td id="h7"></td>
+                    <td id="h8"></td>
+                    <td id="h9"></td>
+                    <td id="h10"></td>
+                    <td id="h11"></td>
+                    <td id="h12"></td>
+                    <td id="h13"></td>
+                    <td id="h14"></td>
+                    <td id="h15"></td>
+                    <td id="h16"></td>
+                    <td id="h17"></td>
+                    <td id="h18"></td>
+                    <td id="h19"></td>
+                    <td id="h20"></td>
+                    <td id="h21"></td>
+                    <td id="h22"></td>
+                    <td id="h23"></td>
+                </tr>
+              </table>
+        </div>
+        <div class="w3-padding"></h3>Nombre impulsions journée: <span id="pulseCount" class="w3-badge w3-green">0</span></div>
+        <div class="w3-padding"></h3>Volume (l): <span id="volume" class="w3-badge w3-green">0</span></div>
+        <div class="w3-padding"></h3>Débit (l/m): <span id="flow" class="w3-badge w3-green">0</span></div>
+        <div class="w3-panel w3-green" id="p_info" style="display:none"><span id="t_info">aaaaa</span></div>
+        <div class="w3-panel w3-red" id="p_erreur_info" style="display:none"><span id="t_erreur_info">eeee</span></div>
+    </div>
+
+    <div class="w3-padding w3-right">
+        <i><img src="fb.svg" alt="FB" width="30"><a href="https://fumeebleue.fr" style="text-decoration: none;"> Fumée Bleue 2020</a></i>
+    </div>
+
+</body>
+
+</html>

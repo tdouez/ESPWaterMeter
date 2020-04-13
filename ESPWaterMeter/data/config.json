@@ -1,0 +1,11 @@
+{
+    "module_name": "",
+    "pulse_factor": "100",
+    "leak_threshold": "800",
+    "tps_maj": "5",
+    "url_mqtt": "",
+    "user_mqtt": "",
+    "pwd_mqtt": "",
+    "port_mqtt": "1883",
+    "token_mqtt": ""
+  }
