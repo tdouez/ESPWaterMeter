@@ -25,6 +25,7 @@
 //  _| \_,_| _|_|_| \___| \___|   ___/ _| \___| \_,_| \___|  
 //--------------------------------------------------------------------    
 // 2020/04/03 - FB V1.00
+// 2020/07/13 - FB V1.01 - NTP fix
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -57,7 +58,7 @@
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.0"
+#define VERSION "1.0.1"
 #define PWD_OTA "fumeebleue"
 
 const int RSSI_MAX =-50;          // define maximum strength of signal in dBm
@@ -391,6 +392,16 @@ String strJson = "{\n";
   strJson += String(getHourwithDLS());
   strJson += F("\",\n");
 
+  // current date ---------------------
+  strJson += F("\"current_date\": \"");
+  strJson += getDatewithDLS();
+  strJson += F("\",\n");
+
+  // date valid ---------------------
+  strJson += F("\"date_valid\": \"");
+  strJson += DateTime.isTimeValid();
+  strJson += F("\",\n");
+
   // startup_date ---------------------
   strJson += F("\"startup_date\": \"");
   strJson += startup_date;
@@ -510,6 +521,7 @@ boolean flag_restart = false;
   }
   saveConfig();
   request->send (200, "text/plain", "OK");
+  delay(500);
 
   if (flag_restart == true) {
     erreur_config = "Reboot module";
@@ -741,7 +753,6 @@ void setup()
   wifiManager.setMinimumSignalQuality(10);
   wifiManager.setConfigPortalTimeout(360);
   wifiManager.autoConnect("FumeeBleue");
-  ;
 
   //----------------------------------------------------Setup Time/NTP
   setupDateTime();
@@ -808,8 +819,14 @@ unsigned long currentTime = millis();
 
   ArduinoOTA.handle();
 
+  u8g2.setFont(u8g2_font_4x6_tr);
+
   if (!DateTime.isTimeValid()) {
+      u8g2.drawStr(1,60, "*");
       DateTime.begin();
+  }
+  else {
+    u8g2.drawStr(1,60, " ");
   }
 
   // No Pulse count received in 2min
@@ -886,7 +903,7 @@ unsigned long currentTime = millis();
   }
   else {
     // adresse IP ----------------------------
-    u8g2.setFont(u8g2_font_4x6_tr);
+    u8g2.setFont(u8g2_font_5x7_tr);
     sprintf(buffer,"%s", WiFi.localIP().toString().c_str());
     u8g2.drawStr(1,6, buffer);
   }
