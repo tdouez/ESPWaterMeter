@@ -26,6 +26,7 @@
 //--------------------------------------------------------------------    
 // 2020/04/03 - FB V1.00
 // 2020/07/13 - FB V1.01 - NTP fix
+// 2020/09/16 - FB V1.01 - LittleFS implementation
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -39,7 +40,7 @@
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncWiFiManager.h>
 #include <ESPDateTime.h>
-#include <FS.h>
+#include <LittleFS.h>
 #include <NTPClient.h>
 #include <U8g2lib.h>
 #include <ArduinoJson.h>
@@ -245,9 +246,9 @@ void setupDateTime() {
 //-----------------------------------------------------------------------
 void loadConfig() {
 
-  if (SPIFFS.exists("/config.json")) {
+  if (LittleFS.exists("/config.json")) {
     Serial.println(F("Lecture config.json"));
-    File configFile = SPIFFS.open("/config.json", "r");
+    File configFile = LittleFS.open("/config.json", "r");
     if (configFile) {
       DynamicJsonDocument jsonDoc(512);
       DeserializationError error = deserializeJson(jsonDoc, configFile);
@@ -313,7 +314,7 @@ void loadConfig() {
 void saveConfig() {
   
   Serial.println(F("Sauvegarde config.json"));
-  File configFile = SPIFFS.open("/config.json", "w");
+  File configFile = LittleFS.open("/config.json", "w");
   DynamicJsonDocument jsonDoc(512);
   JsonObject json = jsonDoc.to<JsonObject>();
 
@@ -535,37 +536,37 @@ void loadPages()
 {
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
   {
-    request->send(SPIFFS, "/index.html", "text/html");
+    request->send(LittleFS, "/index.html", "text/html");
   });
 
   server.on("/w3.css", HTTP_GET, [](AsyncWebServerRequest *request)
   {
-    request->send(SPIFFS, "/w3.css", "text/css");
+    request->send(LittleFS, "/w3.css", "text/css");
   });
 
   server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request)
   {
-    request->send(SPIFFS, "/script.js", "text/javascript");
+    request->send(LittleFS, "/script.js", "text/javascript");
   });
 
   server.on("/jquery.js", HTTP_GET, [](AsyncWebServerRequest *request)
   {
-    request->send(SPIFFS, "/jquery.js", "text/javascript");
+    request->send(LittleFS, "/jquery.js", "text/javascript");
   });
 
   server.on("/notify.js", HTTP_GET, [](AsyncWebServerRequest *request)
   {
-    request->send(SPIFFS, "/notify.js", "text/javascript");
+    request->send(LittleFS, "/notify.js", "text/javascript");
   });
 
   server.on("/fb.svg", HTTP_GET, [](AsyncWebServerRequest *request)
   {
-    request->send(SPIFFS, "/fb.svg", "image/svg+xml");
+    request->send(LittleFS, "/fb.svg", "image/svg+xml");
   });
 
   server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
   {
-    request->send(SPIFFS, "/favicon.ico", "image/x-icon");
+    request->send(LittleFS, "/favicon.ico", "image/x-icon");
   });
 
   server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -724,12 +725,12 @@ void setup()
   Serial.println(F("  _| \\_,_| _|_|_| \\___| \\___|   ___/ _| \\___| \\_,_| \\___|"));
   Serial.print(F("                                             "));
 
-  //----------------------------------------------------SPIFFS
-  if(!SPIFFS.begin())
+  //----------------------------------------------------LittleFS
+  if(!LittleFS.begin())
   {
-    Serial.println("Erreur SPIFFS...");
+    Serial.println("Erreur LittleFS...");
     u8g2.clearBuffer();
-    u8g2.drawStr(0,10,"Erreur SPIFFS...");
+    u8g2.drawStr(0,10,"Erreur LittleFS...");
     u8g2.sendBuffer();
     return;
   }
