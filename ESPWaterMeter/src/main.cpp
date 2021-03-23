@@ -27,6 +27,7 @@
 // 2020/04/03 - FB V1.00
 // 2020/07/13 - FB V1.01 - NTP fix
 // 2020/09/16 - FB V1.01 - LittleFS implementation
+// 2021/03/22 - FB V1.02 - Bug fix on getDatewithDLS
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -59,7 +60,7 @@
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.1"
+#define VERSION "1.0.2"
 #define PWD_OTA "fumeebleue"
 
 const int RSSI_MAX =-50;          // define maximum strength of signal in dBm
@@ -191,7 +192,7 @@ String getDatewithDLS() {
 
   c_date += DateTime.getParts().getMonthDay();
   c_date += "/";
-  c_date += DateTime.getParts().getMonth();
+  c_date += DateTime.getParts().getMonth()+1;
   c_date += "/";
   c_date += DateTime.getParts().getYear();
   c_date += " ";
@@ -235,7 +236,7 @@ void setupDateTime() {
   // DateTime.setTimeZone(-4);
   //   DateTime.setServer("asia.pool.ntp.org");
   //   DateTime.begin(15 * 1000);
-  DateTime.setTimeZone(1);  // +1 Paris ---
+  DateTime.setTimeZone("CET-1CEST,M3.5.0,M10.5.0/3");  // Paris ---
   DateTime.setServer("europe.pool.ntp.org");
   DateTime.begin();
   if (!DateTime.isTimeValid()) {
