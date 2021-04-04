@@ -28,6 +28,7 @@
 // 2020/07/13 - FB V1.01 - NTP fix
 // 2020/09/16 - FB V1.01 - LittleFS implementation
 // 2021/03/22 - FB V1.02 - Bug fix on getDatewithDLS
+// 2021/03/31 - FB V1.03 - Add startup date and current date into index.html
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -60,7 +61,7 @@
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.2"
+#define VERSION "1.0.3"
 #define PWD_OTA "fumeebleue"
 
 const int RSSI_MAX =-50;          // define maximum strength of signal in dBm

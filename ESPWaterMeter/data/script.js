@@ -89,6 +89,12 @@ function lire_item_json(myjson) {
         if (name == "hour") {
             affiche_index(value);
         }
+        if (name == "current_date") {
+            document.getElementById("currentDate").innerHTML = value;
+        }
+        if (name == "startup_date") {
+            document.getElementById("startDate").innerHTML = value;
+        }
         
     });
 }
