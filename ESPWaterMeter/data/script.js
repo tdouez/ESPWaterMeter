@@ -95,7 +95,9 @@ function lire_item_json(myjson) {
         if (name == "startup_date") {
             document.getElementById("startDate").innerHTML = value;
         }
-        
+        if (name == "timezone") {
+            $("#timezone").val(value);
+        }
     });
 }
 

@@ -29,6 +29,7 @@
 // 2020/09/16 - FB V1.01 - LittleFS implementation
 // 2021/03/22 - FB V1.02 - Bug fix on getDatewithDLS
 // 2021/03/31 - FB V1.03 - Add startup date and current date into index.html
+// 2021/04/09 - FB V1.04 - date bugfix ans add timezone into index.html
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -61,7 +62,7 @@
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.3"
+#define VERSION "1.0.4"
 #define PWD_OTA "fumeebleue"
 
 const int RSSI_MAX =-50;          // define maximum strength of signal in dBm
@@ -85,6 +86,8 @@ double ppl = ((double)pulse_factor)/1000;             // Pulses per liter
 double volume = 0;
 char module_name[MAX_BUFFER];
 char memo_module_name[MAX_BUFFER];
+char timezone[MAX_BUFFER];
+char memo_timezone[MAX_BUFFER];
 char url_mqtt[MAX_BUFFER_URL];
 char memo_url_mqtt[MAX_BUFFER_URL];
 unsigned int port_mqtt;
@@ -234,10 +237,11 @@ void ICACHE_RAM_ATTR onPulse()
 void setupDateTime() {
   // setup this after wifi connected
   // you can use custom timeZone,server and timeout
-  // DateTime.setTimeZone(-4);
+  // DateTime.setTimeZone("GMT-1");
   //   DateTime.setServer("asia.pool.ntp.org");
   //   DateTime.begin(15 * 1000);
-  DateTime.setTimeZone("CET-1CEST,M3.5.0,M10.5.0/3");  // Paris ---
+  //DateTime.setTimeZone("CET-1CEST,M3.5.0,M10.5.0/3");  // Paris ---
+  DateTime.setTimeZone(timezone);  
   DateTime.setServer("europe.pool.ntp.org");
   DateTime.begin();
   if (!DateTime.isTimeValid()) {
@@ -265,7 +269,9 @@ void loadConfig() {
         strcpy(memo_module_name, module_name);
       } 
       else sprintf(module_name, "EMT_%06X", ESP.getChipId());
-  
+
+      if (json["timezone"].isNull() == false) strcpy(timezone, json["timezone"]);
+        
       if (json["tps_maj"].isNull() == false) tps_maj = json["tps_maj"];
         else tps_maj = DEFAULT_TPS_MAJ;
       
@@ -321,6 +327,7 @@ void saveConfig() {
   JsonObject json = jsonDoc.to<JsonObject>();
 
   json["module_name"] = module_name;
+  json["timezone"] = timezone;
   json["tps_maj"] = tps_maj;
   json["url_mqtt"] = url_mqtt;
   json["user_mqtt"] = user_mqtt;
@@ -418,6 +425,7 @@ String strJson = "{\n";
 //-----------------------------------------------------------------------
 void printConfig() {
     Serial << "Name       : " << module_name << "\n";
+    Serial << "Timezone   : " << timezone << "\n";
     Serial << "Tps maj    : " << tps_maj << "\n";
     Serial << "Url MQTT   : " << url_mqtt << "\n";
     Serial << "Port Mqtt  : " << port_mqtt << "\n";
@@ -438,6 +446,11 @@ String strJson = "{\n";
   // module name---------------------
   strJson += F("\"module_name\": \"");
   strJson += module_name;
+  strJson += F("\",\n");
+
+  // timezone ---------------------
+  strJson += F("\"timezone\": \"");
+  strJson += timezone;
   strJson += F("\",\n");
 
   // module name---------------------
@@ -504,6 +517,7 @@ boolean flag_restart = false;
     Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
     
     if (strstr(p->name().c_str(), "module_name")) strcpy(module_name, p->value().c_str());
+    if (strstr(p->name().c_str(), "timezone")) strcpy(timezone, p->value().c_str());
     if (strstr(p->name().c_str(), "url_mqtt")) strcpy(url_mqtt, p->value().c_str());
     if (strstr(p->name().c_str(), "port_mqtt")) port_mqtt = atoi(p->value().c_str());
     if (strstr(p->name().c_str(), "user_mqtt")) strcpy(user_mqtt, p->value().c_str());
@@ -515,6 +529,7 @@ boolean flag_restart = false;
 
     // check if restart required 
     if (strcmp(module_name, memo_module_name) != 0) flag_restart = true;
+    if (strcmp(timezone, memo_timezone) != 0) flag_restart = true;
     if (strcmp(url_mqtt, memo_url_mqtt) != 0) flag_restart = true;
     if (strcmp(user_mqtt, memo_user_mqtt) != 0) flag_restart = true;
     if (strcmp(pwd_mqtt, memo_pwd_mqtt) != 0) flag_restart = true;
