@@ -30,6 +30,7 @@
 // 2021/03/22 - FB V1.02 - Bug fix on getDatewithDLS
 // 2021/03/31 - FB V1.03 - Add startup date and current date into index.html
 // 2021/04/09 - FB V1.04 - date bugfix ans add timezone into index.html
+// 2021/05/06 - FB V1.05 - Change volume/flow precision (2 digits after the decimal point)
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -62,7 +63,7 @@
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.4"
+#define VERSION "1.0.5"
 #define PWD_OTA "fumeebleue"
 
 const int RSSI_MAX =-50;          // define maximum strength of signal in dBm
@@ -621,11 +622,11 @@ char buffer_value[32];
   client_mqtt.publish(buffer, buffer_value, true);
 
   sprintf(buffer, "%s/volume", token_mqtt);
-  sprintf(buffer_value, "%.0f", volume);
+  sprintf(buffer_value, "%.2f", volume);
   client_mqtt.publish(buffer, buffer_value, true);
 
   sprintf(buffer, "%s/flow", token_mqtt);
-  sprintf(buffer_value, "%.1f", flow);
+  sprintf(buffer_value, "%.2f", flow);
   client_mqtt.publish(buffer, buffer_value);
 
   sprintf(buffer, "%s/totalPulse", token_mqtt);
