@@ -31,6 +31,7 @@
 // 2021/03/31 - FB V1.03 - Add startup date and current date into index.html
 // 2021/04/09 - FB V1.04 - date bugfix ans add timezone into index.html
 // 2021/05/06 - FB V1.05 - Change volume/flow precision (2 digits after the decimal point)
+// 2021/06/30 - FB V1.06 - Bug fix on check continuous consumption
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -63,7 +64,7 @@
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.5"
+#define VERSION "1.0.6"
 #define PWD_OTA "fumeebleue"
 
 const int RSSI_MAX =-50;          // define maximum strength of signal in dBm
@@ -861,9 +862,7 @@ unsigned long currentTime = millis();
 
   // check continuous consumption during last 24hr
   for (uint8_t i=0; i<HBD; i++) {
-    uint8_t j = i+1;
-    if(j==HBD) j = 0;
-    if(conso[i] ==0 && conso[j] == 0) flag_leak_type1 = false;
+    if(conso[i] == 0) flag_leak_type1 = false;
   }
   
   // check consumption in excess of the 24hr threshold 
@@ -871,6 +870,7 @@ unsigned long currentTime = millis();
   for (uint8_t i=0; i<HBD; i++) {
     totalPulse += conso[i];
   }
+  
   double volume_cumul = 1000*((double)totalPulse/(double)pulse_factor);
   if (volume_cumul < leak_threshold) flag_leak_type2 = false;
   //Serial << volume_cumul << "/" << leak_threshold << "\n";
