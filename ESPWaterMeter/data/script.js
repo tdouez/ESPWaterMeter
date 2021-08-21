@@ -71,6 +71,9 @@ function lire_item_json(myjson) {
         if (name == "volume") {
             document.getElementById("volume").innerHTML = value;
         } 
+        if (name == "volume_cumul") {
+            document.getElementById("volume_cumul").innerHTML = value;
+        }
         if (/^h[0-9]{1,2}/.test(name)) {
             document.getElementById(name).innerHTML = value;
         }
@@ -94,9 +97,6 @@ function lire_item_json(myjson) {
         }
         if (name == "startup_date") {
             document.getElementById("startDate").innerHTML = value;
-        }
-        if (name == "timezone") {
-            $("#timezone").val(value);
         }
     });
 }

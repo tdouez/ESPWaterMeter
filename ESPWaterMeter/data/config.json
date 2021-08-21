@@ -2,11 +2,12 @@
     "module_name": "",
     "pulse_factor": "100",
     "leak_threshold": "800",
-    "tps_maj": "5",
+    "tps_maj": "30",
     "url_mqtt": "",
     "user_mqtt": "",
     "pwd_mqtt": "",
     "port_mqtt": "1883",
     "token_mqtt": "",
-    "timezone": "GMT-1"
+    "timezone": "CEST",
+    "ntp_server": "fr.pool.ntp.org"
   }

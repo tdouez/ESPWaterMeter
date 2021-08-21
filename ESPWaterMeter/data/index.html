@@ -31,35 +31,6 @@
                 <p>
                     <label class="w3-text-blue"><b>Nom Module</b></label>
                     <input class="w3-input w3-border" type="text" name="module_name" id="module_name" maxlength="32" value="" style="width:40%;">
-                    <div class="w3-padding">Timezone:
-                        <select class="w3-select" name="timezone" id="timezone" >
-                            <option value="GMT-12">GMT-12</option>
-                            <option value="GMT-11">GMT-11</option>
-                            <option value="GMT-10">GMT-10</option>
-                            <option value="GMT-9">GMT-9</option>
-                            <option value="GMT-8">GMT-8</option>
-                            <option value="GMT-7">GMT-7</option>
-                            <option value="GMT-6">GMT-6</option>
-                            <option value="GMT-5">GMT-5</option>
-                            <option value="GMT-4">GMT-4</option>
-                            <option value="GMT-3">GMT-3</option>
-                            <option value="GMT-2">GMT-2</option>
-                            <option value="GMT-1">GMT-1</option>
-                            <option value="GMT0">GMT0</option>
-                            <option value="GMT+1">GMT+1</option>
-                            <option value="GMT+2">GMT+2</option>
-                            <option value="GMT+3">GMT+3</option>
-                            <option value="GMT+4">GMT+4</option>
-                            <option value="GMT+5">GMT+5</option>
-                            <option value="GMT+6">GMT+6</option>
-                            <option value="GMT+7">GMT+7</option>
-                            <option value="GMT+8">GMT+8</option>
-                            <option value="GMT+9">GMT+9</option>
-                            <option value="GMT+10">GMT+10</option>
-                            <option value="GMT+11">GMT+11</option>
-                            <option value="GMT+12">GMT+12</option>
-                        </select>
-                    </div>
                 </p>
             </div>
             <div class="w3-panel w3-border">  
@@ -101,9 +72,10 @@
         <div class="w3-container w3-text-blue">
             <h1>Information</h1>
         </div>
-        <div class="w3-padding">Date courante:<span id="currentDate" class="w3-badge w3-green">0</span></div>
-        <div class="w3-padding">Date démarrage:<span id="startDate" class="w3-badge w3-green">0</span></div>
-        <div class="w3-padding">Historique impulsions sur 24h: <span id="totalPulse" class="w3-badge w3-green">0</span></div>
+        <div class="w3-padding">Date courante:<span id="currentDate" class="w3-tag w3-round w3-teal">0</span></div>
+        <div class="w3-padding">Date démarrage:<span id="startDate" class="w3-tag w3-round w3-teal">0</span></div>
+        <div class="w3-padding">Historique impulsions sur 24h: <span id="totalPulse" class="w3-tag w3-round w3-teal">0</span></div>
+        <div class="w3-padding"></h3>Volume sur 24h (l): <span id="volume_cumul" class="w3-tag w3-round w3-teal">0</span></div>
         <div class="w3-container w3-padding">
             <table class="w3-table w3-small w3-responsive">
                 <tr class="w3-light-blue">
@@ -160,9 +132,9 @@
                 </tr>
               </table>
         </div>
-        <div class="w3-padding"></h3>Nombre impulsions journée: <span id="pulseCount" class="w3-badge w3-green">0</span></div>
-        <div class="w3-padding"></h3>Volume (l): <span id="volume" class="w3-badge w3-green">0</span></div>
-        <div class="w3-padding"></h3>Débit (l/mn): <span id="flow" class="w3-badge w3-green">0</span></div>
+        <div class="w3-padding"></h3>Nombre impulsions journée: <span id="pulseCount" class="w3-tag w3-round w3-teal">0</span></div>
+        <div class="w3-padding"></h3>Volume journée (l): <span id="volume" class="w3-tag w3-round w3-teal">0</span></div>
+        <div class="w3-padding"></h3>Débit (l/mn): <span id="flow" class="w3-tag w3-round w3-teal">0</span></div>
         <div class="w3-panel w3-green" id="p_info" style="display:none"><span id="t_info">aaaaa</span></div>
         <div class="w3-panel w3-red" id="p_erreur_info" style="display:none"><span id="t_erreur_info">eeee</span></div>
     </div>

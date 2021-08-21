@@ -32,6 +32,7 @@
 // 2021/04/09 - FB V1.04 - date bugfix ans add timezone into index.html
 // 2021/05/06 - FB V1.05 - Change volume/flow precision (2 digits after the decimal point)
 // 2021/06/30 - FB V1.06 - Bug fix on check continuous consumption
+// 2021/07/21 - FB V1.07 - Bug fix on GMT and add histo memorization after reboot
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -46,13 +47,15 @@
 #include <ESPAsyncWiFiManager.h>
 #include <ESPDateTime.h>
 #include <LittleFS.h>
-#include <NTPClient.h>
 #include <U8g2lib.h>
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
 #include <PubSubClient.h>
 #include <Streaming.h>
 #include <main.h>
+#include <EasyNTPClient.h>
+#include <Timezone.h>
+
 
 #define BP_WIFI              13   // Bp - D7
 #define DIGITAL_INPUT_SENSOR 2    // Water sensor - D4
@@ -60,12 +63,14 @@
 #define HBD      24               // 24 hours
 #define DEFAULT_PULSE_FACTOR 100	// Number of blinks per m3 of your meter (100: One rotation/10 liters)
 #define DEFAULT_LEAK_THRESHOLD 800// Alert threshold, by default 800 l/day
-#define DEFAULT_TPS_MAJ 5
+#define DEFAULT_TPS_MAJ 30
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.6"
+#define VERSION "1.0.7"
 #define PWD_OTA "fumeebleue"
+#define DEFAULT_NTP_SERVER "fr.pool.ntp.org"
+#define DEFAULT_GMT "CEST"
 
 const int RSSI_MAX =-50;          // define maximum strength of signal in dBm
 const int RSSI_MIN =-100;         // define minimum strength of signal in dBm
@@ -73,8 +78,11 @@ uint32_t SEND_FREQUENCY =  30000; // Minimum time between send (in milliseconds)
 unsigned int  conso[HBD] = {0};   // historic consumption
 boolean  flag_leak_type1 = false; // continuous consumption during 24hr
 boolean  flag_leak_type2 = false; // consumption in excess of the 24hr threshold
-boolean  flag_pulseCount = false; // Used after reboot in order to retreive value 
+boolean  flag_pulseCount = false; // Used after reboot in order to retreive pulse 
 boolean  flag_volume = false;     // Used after reboot in order to retreive value
+boolean  flag_totalPulse = false;
+boolean  flag_histo_conso = false;
+int cpt_histo_conso = 0;
 unsigned int leak_type = 0;       // 1 : continus comsumption, 2 : excess comsumption, 3 : both 
 uint32_t lastSend = 0;
 uint32_t lastPulse = 0;
@@ -86,10 +94,9 @@ unsigned int pulse_factor = DEFAULT_PULSE_FACTOR;     // Number of blinks per m3
 unsigned int leak_threshold = DEFAULT_LEAK_THRESHOLD; // Alert threshold, by default 800 l/day
 double ppl = ((double)pulse_factor)/1000;             // Pulses per liter
 double volume = 0;
+double volume_cumul = 0;
 char module_name[MAX_BUFFER];
 char memo_module_name[MAX_BUFFER];
-char timezone[MAX_BUFFER];
-char memo_timezone[MAX_BUFFER];
 char url_mqtt[MAX_BUFFER_URL];
 char memo_url_mqtt[MAX_BUFFER_URL];
 unsigned int port_mqtt;
@@ -101,13 +108,18 @@ char memo_pwd_mqtt[MAX_BUFFER];
 char token_mqtt[MAX_BUFFER];
 char memo_token_mqtt[MAX_BUFFER];
 unsigned long tps_maj;
-int last_hour = 0;                 // Last hour
-int last_day = 0;                  // Last hour
+int last_hour = 0;    
+int last_day = 0;
 unsigned long previousMillis_fuite = 0;
 unsigned long previousMillis_maj = 0;
 unsigned long lastReconnectAttempt_mqtt = 0;
 boolean flag_memo = true;
+boolean flag_startup = false;
 char buffer[128]; 
+String last_reset_counter;
+int last_reset_counter_day = 0;
+int last_reset_counter_hour = 0;
+String last_reset_conso;
 
 String info_mqtt = "Non actif";
 String information = "Pas de Fuite";
@@ -118,101 +130,34 @@ String startup_date = "";
 
 AsyncWebServer server(80);
 DNSServer dns;
-WiFiUDP ntpUDP;
 WiFiClient espClient;
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 PubSubClient client_mqtt(espClient);
+WiFiUDP Udp_G; 
+time_t Local_time;
 
+// ----- Timezone configuration -----------------
+EasyNTPClient ClientNtp_G(Udp_G, "fr.pool.ntp.org"); // NTP server "pool.ntp.org"
+TimeChangeRule myDST = {"RHEE", Last, Sun, Mar, 2, 120}; // Daylight time - Règle de passage à l'heure d'été pour la France
+TimeChangeRule mySTD = {"RHHE", Last, Sun, Oct, 3, 60}; // Standard time - Règle de passage à l'heure d'hiver la France
+// ----- Timezone configuration -----------------
 
+Timezone myTZ(myDST, mySTD);
 
-// ---------------------------------------------------------------------- calcul DLS 
-int calculDLS() // fonction qui calcule DLS (Day Light Saving : heure d'hiver DLS = 0 , d'heure d'été DLS = 1)
+//-----------------------------------------------------------------------
+String return_current_time()
 {
-/*You can use the following equations to calculate when DST starts and ends.
- The divisions are integer divisions, in which remainders are discarded.
- "mod" means the remainder when doing integer division, e.g., 20 mod 7 = 6.
- That is, 20 divided by 7 is 2 and 6/7th (where six is the remainder).
- With: y = year.
-        For the United States:
-            Begin DST: Sunday April (2+6*y-y/4) mod 7+1
-            End DST: Sunday October (31-(y*5/4+1) mod 7)
-           Valid for years 1900 to 2006, though DST wasn't adopted until the 1950s-1960s. 2007 and after:
-            Begin DST: Sunday March 14 - (1 + y*5/4) mod 7
-            End DST: Sunday November 7 - (1 + y*5/4) mod 7;
-        European Economic Community:
-            Begin DST: Sunday March (31 - (5*y/4 + 4) mod 7) at 1h U.T.
-            End DST: Sunday October (31 - (5*y/4 + 1) mod 7) at 1h U.T.
-            Since 1996, valid through 2099
-(Equations by Wei-Hwa Huang (US), and Robert H. van Gent (EC))
- 
- Adjustig Time with DST Europe/France/Paris: UTC+1h in winter, UTC+2h in summer
- 
- */
- 
-  // last sunday of march
-  int beginDSTDate=  (31 - (5* DateTime.getParts().getYear() /4 + 4) % 7);
-  //Serial.println(beginDSTDate);
-  int beginDSTMonth=3;
-  //last sunday of october
-  int endDSTDate= (31 - (5 * DateTime.getParts().getYear() /4 + 1) % 7);
-  //Serial.println(endDSTDate);
-  int endDSTMonth=10;
-  // DST is valid as:
-  if (((DateTime.getParts().getMonth()+1 > beginDSTMonth) && (DateTime.getParts().getMonth()+1 < endDSTMonth))
-      || ((DateTime.getParts().getMonth()+1 == beginDSTMonth) && (DateTime.getParts().getMonthDay() > beginDSTDate)) 
-	  || ((DateTime.getParts().getMonth()+1 == beginDSTMonth) && (DateTime.getParts().getMonthDay() == beginDSTDate) && (DateTime.getParts().getHours() >= 1))
-      || ((DateTime.getParts().getMonth()+1 == endDSTMonth) && (DateTime.getParts().getMonthDay() < endDSTDate))
-	  || ((DateTime.getParts().getMonth()+1 == endDSTMonth) && (DateTime.getParts().getMonthDay() == endDSTDate) && (DateTime.getParts().getHours() < 1)))
-  return 1;      // DST europe = utc +2 hour (summer time)
-  else return 0; // nonDST europe = utc +1 hour (winter time)
+  return String(day(Local_time)) + String("/") + String(month(Local_time)) + String("/") + String(year(Local_time));
 }
 
 //-----------------------------------------------------------------------
-int getHourwithDLS() {
-  // getHours - Get hours since midnight (0-23)
-  // calculDLS - Get DLS (+0 or +1)
-  int dls = calculDLS();
-  int current_h = DateTime.getParts().getHours();
-
-  if (dls == 1) {
-    current_h += 1;
-    if (current_h == 24) current_h = 0;
-  }
-
-  return current_h;
+String return_current_date()
+{
+  return String(hour(Local_time)) + String(":") + String(minute(Local_time)) + String(":") + String(second(Local_time));
 }
 
 //-----------------------------------------------------------------------
-String getDatewithDLS() {
-  String c_date;
-
-  // getHours - Get hours since midnight (0-23)
-  // calculDLS - Get DLS (+0 or +1)
-  int dls = calculDLS();
-  int current_h = DateTime.getParts().getHours();
-
-  if (dls == 1) {
-    current_h += 1;
-    if (current_h == 24) current_h = 0;
-  }
-
-  c_date += DateTime.getParts().getMonthDay();
-  c_date += "/";
-  c_date += DateTime.getParts().getMonth()+1;
-  c_date += "/";
-  c_date += DateTime.getParts().getYear();
-  c_date += " ";
-  c_date += String(current_h);
-  c_date += ":";
-  c_date += DateTime.getParts().getMinutes();
-  c_date += ":";
-  c_date += DateTime.getParts().getSeconds();
-              
-  return c_date;
-}
-
-//-----------------------------------------------------------------------
-void ICACHE_RAM_ATTR onPulse()
+void IRAM_ATTR onPulse()
 {
 
 	uint32_t newBlink = micros();
@@ -230,25 +175,9 @@ void ICACHE_RAM_ATTR onPulse()
 
 	pulseCount++;
   //Serial.println(pulseCount);
-  conso[getHourwithDLS()]++;
+  conso[hour(Local_time)]++;
   volume = 1000*((double)pulseCount/(double)pulse_factor);
   
-}
-
-//-----------------------------------------------------------------------
-void setupDateTime() {
-  // setup this after wifi connected
-  // you can use custom timeZone,server and timeout
-  // DateTime.setTimeZone("GMT-1");
-  //   DateTime.setServer("asia.pool.ntp.org");
-  //   DateTime.begin(15 * 1000);
-  //DateTime.setTimeZone("CET-1CEST,M3.5.0,M10.5.0/3");  // Paris ---
-  DateTime.setTimeZone(timezone);  
-  DateTime.setServer("europe.pool.ntp.org");
-  DateTime.begin();
-  if (!DateTime.isTimeValid()) {
-    Serial.println("Failed to get time from server.");
-  }
 }
 
 //-----------------------------------------------------------------------
@@ -271,8 +200,6 @@ void loadConfig() {
         strcpy(memo_module_name, module_name);
       } 
       else sprintf(module_name, "EMT_%06X", ESP.getChipId());
-
-      if (json["timezone"].isNull() == false) strcpy(timezone, json["timezone"]);
         
       if (json["tps_maj"].isNull() == false) tps_maj = json["tps_maj"];
         else tps_maj = DEFAULT_TPS_MAJ;
@@ -329,7 +256,6 @@ void saveConfig() {
   JsonObject json = jsonDoc.to<JsonObject>();
 
   json["module_name"] = module_name;
-  json["timezone"] = timezone;
   json["tps_maj"] = tps_maj;
   json["url_mqtt"] = url_mqtt;
   json["user_mqtt"] = user_mqtt;
@@ -370,6 +296,11 @@ String strJson = "{\n";
   strJson += volume;
   strJson += F("\",\n");
 
+  // volume_cumul ---------------------
+  strJson += F("\"volume_cumul\": \"");
+  strJson += volume_cumul;
+  strJson += F("\",\n");
+
   // info ---------------------
   strJson += F("\"info\": \"");
   strJson += information;
@@ -399,19 +330,34 @@ String strJson = "{\n";
   strJson += erreur_config;
   strJson += F("\",\n");
 
+  // last_reset_conso ---------------------
+  strJson += F("\"last_reset_conso\": \"");
+  strJson += last_reset_conso;
+  strJson += F("\",\n");
+
+  // last_reset_counter ---------------------
+  strJson += F("\"last_reset_counter\": \"");
+  strJson += last_reset_counter;
+  strJson += F("\",\n");
+    
+  // last_reset_counter_hour ---------------------
+  strJson += F("\"last_reset_counter_hour\": \"");
+  strJson += last_reset_counter_hour;
+  strJson += F("\",\n");
+
+  // last_reset_counter_day ---------------------
+  strJson += F("\"last_reset_counter_day\": \"");
+  strJson += last_reset_counter_day;
+  strJson += F("\",\n");
+  
   // current hour ---------------------
   strJson += F("\"hour\": \"");
-  strJson += String(getHourwithDLS());
+  strJson += hour(Local_time);
   strJson += F("\",\n");
 
   // current date ---------------------
   strJson += F("\"current_date\": \"");
-  strJson += getDatewithDLS();
-  strJson += F("\",\n");
-
-  // date valid ---------------------
-  strJson += F("\"date_valid\": \"");
-  strJson += DateTime.isTimeValid();
+  strJson += return_current_time() + String(" - ") + return_current_date();
   strJson += F("\",\n");
 
   // startup_date ---------------------
@@ -427,7 +373,6 @@ String strJson = "{\n";
 //-----------------------------------------------------------------------
 void printConfig() {
     Serial << "Name       : " << module_name << "\n";
-    Serial << "Timezone   : " << timezone << "\n";
     Serial << "Tps maj    : " << tps_maj << "\n";
     Serial << "Url MQTT   : " << url_mqtt << "\n";
     Serial << "Port Mqtt  : " << port_mqtt << "\n";
@@ -448,11 +393,6 @@ String strJson = "{\n";
   // module name---------------------
   strJson += F("\"module_name\": \"");
   strJson += module_name;
-  strJson += F("\",\n");
-
-  // timezone ---------------------
-  strJson += F("\"timezone\": \"");
-  strJson += timezone;
   strJson += F("\",\n");
 
   // module name---------------------
@@ -519,7 +459,6 @@ boolean flag_restart = false;
     Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
     
     if (strstr(p->name().c_str(), "module_name")) strcpy(module_name, p->value().c_str());
-    if (strstr(p->name().c_str(), "timezone")) strcpy(timezone, p->value().c_str());
     if (strstr(p->name().c_str(), "url_mqtt")) strcpy(url_mqtt, p->value().c_str());
     if (strstr(p->name().c_str(), "port_mqtt")) port_mqtt = atoi(p->value().c_str());
     if (strstr(p->name().c_str(), "user_mqtt")) strcpy(user_mqtt, p->value().c_str());
@@ -531,7 +470,6 @@ boolean flag_restart = false;
 
     // check if restart required 
     if (strcmp(module_name, memo_module_name) != 0) flag_restart = true;
-    if (strcmp(timezone, memo_timezone) != 0) flag_restart = true;
     if (strcmp(url_mqtt, memo_url_mqtt) != 0) flag_restart = true;
     if (strcmp(user_mqtt, memo_user_mqtt) != 0) flag_restart = true;
     if (strcmp(pwd_mqtt, memo_pwd_mqtt) != 0) flag_restart = true;
@@ -638,7 +576,14 @@ char buffer_value[32];
   sprintf(buffer_value, "%d", leak_type);
   client_mqtt.publish(buffer, buffer_value);
 
+  for (int i=0; i<HBD; i++) {
+    sprintf(buffer, "%s/h%02d", token_mqtt, i);
+    sprintf(buffer_value, "%d", conso[i]);
+    client_mqtt.publish(buffer, buffer_value, true);
+  }
+
 }
+
 
 //------------------------------------------------------------------
 void draw_splashscreen() {
@@ -699,15 +644,26 @@ void callback_mqtt(char* topic, byte* payload, unsigned int length) {
 
   // retreive pulseCount value after reboot ------------
   sprintf(buffer, "%s/pulseCount", token_mqtt);
-  if (strstr(buffer, topic) && flag_pulseCount == false) {
+  if (strstr(topic, buffer) && flag_pulseCount == false) {
     pulseCount = messageTemp.toInt();
     flag_pulseCount = true;
   }
   // retreive volume value after reboot ------------
   sprintf(buffer, "%s/volume", token_mqtt);
-  if (strstr(buffer, topic) && flag_volume == false) {
+  if (strstr(topic, buffer) && flag_volume == false) {
     volume = messageTemp.toInt();
     flag_volume = true;
+  }
+  // retreive histo after reboot -----------
+  if (flag_histo_conso == false) {
+    for (int i=0; i<HBD; i++) {
+      sprintf(buffer, "%s/h%02d", token_mqtt, i);
+      if (strstr(topic, buffer) && flag_histo_conso == false) {
+        conso[i] = messageTemp.toInt();
+        if (cpt_histo_conso >= HBD) flag_histo_conso = true;
+        cpt_histo_conso++;
+      }
+    }
   }
   
 }
@@ -773,9 +729,6 @@ void setup()
   wifiManager.setMinimumSignalQuality(10);
   wifiManager.setConfigPortalTimeout(360);
   wifiManager.autoConnect("FumeeBleue");
-
-  //----------------------------------------------------Setup Time/NTP
-  setupDateTime();
   
   //----------------------------------------------------SERVER
   loadPages();
@@ -823,12 +776,13 @@ void setup()
   client_mqtt.setServer(url_mqtt, port_mqtt);
   client_mqtt.setCallback(callback_mqtt);
 
-  lastSend = lastPulse = millis();
-
   u8g2.clearBuffer();
-  startup_date = getDatewithDLS();
+  Local_time = myTZ.toLocal(ClientNtp_G.getUnixTime());
+  startup_date = return_current_time() + String(" - ") + return_current_date();
 
   attachInterrupt(digitalPinToInterrupt(DIGITAL_INPUT_SENSOR), onPulse, FALLING);
+  
+  previousMillis_maj = lastPulse = millis();
 }
 
 
@@ -836,24 +790,21 @@ void setup()
 void loop()
 {
 unsigned long currentTime = millis();
+int current_year, current_day, current_hour, current_minute;
 
   ArduinoOTA.handle();
 
   u8g2.setFont(u8g2_font_4x6_tr);
 
-  if (!DateTime.isTimeValid()) {
-      u8g2.drawStr(1,60, "*");
-      DateTime.begin();
+  if (WiFi.status() == WL_CONNECTED) {  
+    Local_time = myTZ.toLocal(ClientNtp_G.getUnixTime());
   }
-  else {
-    u8g2.drawStr(1,60, " ");
-  }
-
+  
   // No Pulse count received in 2min
   if(currentTime - lastPulse > 120000) {
     flow = 0;
   }
-
+  
   // Check leak ------------------------------------------------------
   flag_leak_type1=true;
   flag_leak_type2=true;
@@ -871,7 +822,7 @@ unsigned long currentTime = millis();
     totalPulse += conso[i];
   }
   
-  double volume_cumul = 1000*((double)totalPulse/(double)pulse_factor);
+  volume_cumul = 1000*((double)totalPulse/(double)pulse_factor);
   if (volume_cumul < leak_threshold) flag_leak_type2 = false;
   //Serial << volume_cumul << "/" << leak_threshold << "\n";
   
@@ -890,20 +841,30 @@ unsigned long currentTime = millis();
   //Serial << "Leak type:" << leak_type << "\n";
 
   // Every hours reset conso --------
-  if (getHourwithDLS() != last_hour)  {
-    Serial.println(F("Reset conso"));
-    conso[getHourwithDLS()] = 0;
-    last_hour = getHourwithDLS();
-  }
-  
-  // Every days reset counters --------
-  if (DateTime.getParts().getMonthDay() != last_day)  {
-    Serial.println(F("Reset counters"));
-    pulseCount = 0;
-    flow = 0;
-    volume = 0;
-    last_day = DateTime.getParts().getMonthDay();
-  }
+  current_year = year(Local_time);
+  if (current_year > 1970) {
+    current_hour = hour(Local_time);
+    current_minute = minute(Local_time);
+    if (current_hour != last_hour && current_minute == 0)  {
+      Serial.println(F("Change hour - reset conso"));
+      last_reset_counter_hour = last_hour;
+      last_reset_conso = return_current_time() + " - " + return_current_date();
+      conso[hour(Local_time)] = 0;
+      last_hour = current_hour;
+    }
+    
+    // Every days reset counters --------
+    current_day = day(Local_time);
+    if (current_day != last_day && current_hour == 0 && current_minute == 0)  {
+      Serial.println(F("Change day - reset counters"));
+      last_reset_counter_day = last_day;
+      last_reset_counter = return_current_time() + " - " + return_current_date();
+      pulseCount = 0;
+      flow = 0;
+      volume = 0;
+      last_day = current_day;
+    }
+  } 
 
   // draw rssi wifi -----------------------------
   draw_rssi();
