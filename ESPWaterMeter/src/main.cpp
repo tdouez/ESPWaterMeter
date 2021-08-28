@@ -33,6 +33,7 @@
 // 2021/05/06 - FB V1.05 - Change volume/flow precision (2 digits after the decimal point)
 // 2021/06/30 - FB V1.06 - Bug fix on check continuous consumption
 // 2021/07/21 - FB V1.07 - Bug fix on GMT and add histo memorization after reboot
+// 2021/08/28 - FB V1.08 - Bug fix on NTP
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -67,10 +68,9 @@
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.7"
+#define VERSION "1.0.8"
 #define PWD_OTA "fumeebleue"
-#define DEFAULT_NTP_SERVER "fr.pool.ntp.org"
-#define DEFAULT_GMT "CEST"
+
 
 const int RSSI_MAX =-50;          // define maximum strength of signal in dBm
 const int RSSI_MIN =-100;         // define minimum strength of signal in dBm
@@ -107,6 +107,8 @@ char pwd_mqtt[MAX_BUFFER];
 char memo_pwd_mqtt[MAX_BUFFER];
 char token_mqtt[MAX_BUFFER];
 char memo_token_mqtt[MAX_BUFFER];
+char ntp_server[MAX_BUFFER];
+char memo_ntp_server[MAX_BUFFER];
 unsigned long tps_maj;
 int last_hour = 0;    
 int last_day = 0;
@@ -203,6 +205,12 @@ void loadConfig() {
         
       if (json["tps_maj"].isNull() == false) tps_maj = json["tps_maj"];
         else tps_maj = DEFAULT_TPS_MAJ;
+
+      if (json["ntp_server"].isNull() == false) {
+        strcpy(ntp_server, json["ntp_server"]);
+        strcpy(memo_ntp_server, json["ntp_server"]);
+      }
+      else ntp_server[0] = 0;
       
       if (json["url_mqtt"].isNull() == false) {
         strcpy(url_mqtt, json["url_mqtt"]);
@@ -262,6 +270,7 @@ void saveConfig() {
   json["pwd_mqtt"] = pwd_mqtt;
   json["token_mqtt"] = token_mqtt;
   json["port_mqtt"] = port_mqtt;
+  json["ntp_server"] = ntp_server;
   json["pulse_factor"] = pulse_factor;
   json["leak_threshold"] = leak_threshold;
     
@@ -349,6 +358,11 @@ String strJson = "{\n";
   strJson += F("\"last_reset_counter_day\": \"");
   strJson += last_reset_counter_day;
   strJson += F("\",\n");
+
+  // ntp_server ---------------------
+  strJson += F("\"ntp_server\": \"");
+  strJson += ntp_server;
+  strJson += F("\",\n");
   
   // current hour ---------------------
   strJson += F("\"hour\": \"");
@@ -379,6 +393,7 @@ void printConfig() {
     Serial << "User Mqtt  : " << user_mqtt << "\n";
     Serial << "Pwd Mqtt   : " << pwd_mqtt << "\n";
     Serial << "Token Mqtt : " << token_mqtt << "\n";
+    Serial << "Ntp Server : " << ntp_server << "\n"; 
     Serial << "Pulse Factor   : " << pulse_factor << "\n";
     Serial << "Leak threshold : " << leak_threshold << "\n";
 }
@@ -398,6 +413,11 @@ String strJson = "{\n";
   // module name---------------------
   strJson += F("\"version\": \"");
   strJson += VERSION;
+  strJson += F("\",\n");
+
+  // ntp server ---------------------
+  strJson += F("\"ntp_server\": \"");
+  strJson += ntp_server;
   strJson += F("\",\n");
 
   // url mqtt ---------------------
@@ -459,6 +479,7 @@ boolean flag_restart = false;
     Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
     
     if (strstr(p->name().c_str(), "module_name")) strcpy(module_name, p->value().c_str());
+    if (strstr(p->name().c_str(), "ntp_server")) strcpy(ntp_server, p->value().c_str());
     if (strstr(p->name().c_str(), "url_mqtt")) strcpy(url_mqtt, p->value().c_str());
     if (strstr(p->name().c_str(), "port_mqtt")) port_mqtt = atoi(p->value().c_str());
     if (strstr(p->name().c_str(), "user_mqtt")) strcpy(user_mqtt, p->value().c_str());
@@ -470,6 +491,7 @@ boolean flag_restart = false;
 
     // check if restart required 
     if (strcmp(module_name, memo_module_name) != 0) flag_restart = true;
+    if (strcmp(ntp_server, memo_ntp_server) != 0) flag_restart = true;
     if (strcmp(url_mqtt, memo_url_mqtt) != 0) flag_restart = true;
     if (strcmp(user_mqtt, memo_user_mqtt) != 0) flag_restart = true;
     if (strcmp(pwd_mqtt, memo_pwd_mqtt) != 0) flag_restart = true;
@@ -779,7 +801,7 @@ void setup()
   u8g2.clearBuffer();
   Local_time = myTZ.toLocal(ClientNtp_G.getUnixTime());
   startup_date = return_current_time() + String(" - ") + return_current_date();
-
+  
   attachInterrupt(digitalPinToInterrupt(DIGITAL_INPUT_SENSOR), onPulse, FALLING);
   
   previousMillis_maj = lastPulse = millis();
@@ -865,6 +887,10 @@ int current_year, current_day, current_hour, current_minute;
       last_day = current_day;
     }
   } 
+  else {
+    erreur_info = "Date non valide, vérifier serveur NTP";
+    u8g2.drawStr(10,50,"!Pb date");
+  }
 
   // draw rssi wifi -----------------------------
   draw_rssi();
@@ -889,7 +915,7 @@ int current_year, current_day, current_hour, current_minute;
   }
         
   // Maj MQTT ----------------------------
-  if (url_mqtt[0] != 0 && token_mqtt[0] != 0) {
+  if (url_mqtt[0] != 0 && token_mqtt[0] != 0 && current_year > 1970) {
     if (!client_mqtt.connected()) {
       long now = millis();
       if (now - lastReconnectAttempt_mqtt > 5000) {

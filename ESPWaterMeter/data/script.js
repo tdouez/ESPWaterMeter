@@ -31,6 +31,9 @@ function lire_item_json(myjson) {
         if (name == "tps_maj") {
             $("#tps_maj").val(value);
         }
+        if (name == "ntp_server") {
+            $("#ntp_server").val(value);
+        }
         if (name == "url_mqtt") {
             $("#url_mqtt").val(value);
         }

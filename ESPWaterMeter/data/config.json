@@ -8,6 +8,5 @@
     "pwd_mqtt": "",
     "port_mqtt": "1883",
     "token_mqtt": "",
-    "timezone": "CEST",
-    "ntp_server": "fr.pool.ntp.org"
+    "ntp_server": "pool.ntp.org"
   }
