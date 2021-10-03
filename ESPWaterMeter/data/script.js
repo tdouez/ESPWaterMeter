@@ -101,6 +101,12 @@ function lire_item_json(myjson) {
         if (name == "startup_date") {
             document.getElementById("startDate").innerHTML = value;
         }
+        if (name == "url_post") {
+            $("#url_post").val(value);
+        }
+        if (name == "token_post") {
+            $("#token_post").val(value);
+        }
     });
 }
 

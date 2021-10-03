@@ -8,5 +8,7 @@
     "pwd_mqtt": "",
     "port_mqtt": "1883",
     "token_mqtt": "",
+    "url_post": "",
+    "token_post": "",
     "ntp_server": "pool.ntp.org"
   }

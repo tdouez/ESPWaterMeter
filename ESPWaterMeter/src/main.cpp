@@ -34,6 +34,7 @@
 // 2021/06/30 - FB V1.06 - Bug fix on check continuous consumption
 // 2021/07/21 - FB V1.07 - Bug fix on GMT and add histo memorization after reboot
 // 2021/08/28 - FB V1.08 - Bug fix on NTP
+// 2021/10/03 - FB V1.09 - Change water sensor pin D4 to D6 and add POST request
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -56,10 +57,11 @@
 #include <main.h>
 #include <EasyNTPClient.h>
 #include <Timezone.h>
+#include <ArduinoHttpClient.h>
 
 
 #define BP_WIFI              13   // Bp - D7
-#define DIGITAL_INPUT_SENSOR 2    // Water sensor - D4
+#define DIGITAL_INPUT_SENSOR 12   // Water sensor - D6
 #define MAX_FLOW 100              // Max flow (l/min) value to report.
 #define HBD      24               // 24 hours
 #define DEFAULT_PULSE_FACTOR 100	// Number of blinks per m3 of your meter (100: One rotation/10 liters)
@@ -68,7 +70,7 @@
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.8"
+#define VERSION "1.0.9"
 #define PWD_OTA "fumeebleue"
 
 
@@ -109,6 +111,10 @@ char token_mqtt[MAX_BUFFER];
 char memo_token_mqtt[MAX_BUFFER];
 char ntp_server[MAX_BUFFER];
 char memo_ntp_server[MAX_BUFFER];
+char url_post[MAX_BUFFER];
+char memo_url_post[MAX_BUFFER];
+char token_post[MAX_BUFFER];
+char memo_token_post[MAX_BUFFER];
 unsigned long tps_maj;
 int last_hour = 0;    
 int last_day = 0;
@@ -249,6 +255,18 @@ void loadConfig() {
       if (json["leak_threshold"].isNull() == false) leak_threshold = json["leak_threshold"];
         else leak_threshold = DEFAULT_LEAK_THRESHOLD;
 
+      if (json["url_post"].isNull() == false) {
+        strcpy(url_post, json["url_post"]);
+        strcpy(memo_url_post, json["url_post"]);
+      }
+      else url_post[0] = 0;
+
+      if (json["token_post"].isNull() == false) {
+        strcpy(token_post, json["token_post"]);
+        strcpy(memo_token_post, json["token_post"]);
+      }
+      else token_post[0] = 0;
+
       configFile.close();
     }
     else Serial.println(F("Impossible de lire config.json !!"));
@@ -270,10 +288,12 @@ void saveConfig() {
   json["pwd_mqtt"] = pwd_mqtt;
   json["token_mqtt"] = token_mqtt;
   json["port_mqtt"] = port_mqtt;
+  json["url_post"] = url_post;
+  json["token_post"] = token_post;
   json["ntp_server"] = ntp_server;
   json["pulse_factor"] = pulse_factor;
   json["leak_threshold"] = leak_threshold;
-    
+      
   serializeJson(json, configFile);
   configFile.close();
 }
@@ -358,11 +378,6 @@ String strJson = "{\n";
   strJson += F("\"last_reset_counter_day\": \"");
   strJson += last_reset_counter_day;
   strJson += F("\",\n");
-
-  // ntp_server ---------------------
-  strJson += F("\"ntp_server\": \"");
-  strJson += ntp_server;
-  strJson += F("\",\n");
   
   // current hour ---------------------
   strJson += F("\"hour\": \"");
@@ -445,12 +460,22 @@ String strJson = "{\n";
   strJson += token_mqtt;
   strJson += F("\",\n");
 
-  // token mqtt ---------------------
+  // url post ---------------------
+  strJson += F("\"url_post\": \"");
+  strJson += url_post;
+  strJson += F("\",\n");
+
+  // token post ---------------------
+  strJson += F("\"token_post\": \"");
+  strJson += token_post;
+  strJson += F("\",\n");
+
+  // pulse_factor ---------------------
   strJson += F("\"pulse_factor\": \"");
   strJson += pulse_factor;
   strJson += F("\",\n");
 
-  // token mqtt ---------------------
+  // leak_threshold ---------------------
   strJson += F("\"leak_threshold\": \"");
   strJson += leak_threshold;
   strJson += F("\",\n");
@@ -460,7 +485,6 @@ String strJson = "{\n";
   strJson += tps_maj;
   strJson += F("\"\n");
   
-
   strJson += F("}");
 
   request->send(200, "text/json", strJson);
@@ -944,6 +968,41 @@ int current_year, current_day, current_hour, current_minute;
     }
   }
   else erreur_config = "";
+
+  // Maj POST ----------------------------
+  if (url_post[0] != 0 && token_post[0] != 0) {
+    String url = F("/maj_post.php?token=");
+    url += token_post;
+    url += F("&pulseCount=");
+    url += pulseCount;
+    url += F("&volume=");
+    url += volume;
+    url += F("&flow=");
+    url += flow;
+    url += F("&totalPulse=");
+    url += totalPulse;
+    url += F("&leak=");
+    url += leak_type;
+
+    Serial.print(F("Send post:"));
+    Serial.println(url);
+
+    HttpClient http_client = HttpClient(espClient, url_post, 80);
+    http_client.get(url);
+    int httpCode = http_client.responseStatusCode();
+
+    if(httpCode > 0) {
+      Serial.print(F("Retour http get: "));
+    }
+    else {
+      Serial.print(F("Erreur http get: "));
+      info_config = "Erreur http get:" + httpCode;
+      u8g2.setFont(u8g2_font_5x7_tr);
+      u8g2.drawStr(1, 5, info_config.c_str());
+      delay(1000);
+    }
+    Serial.println(httpCode);
+  }
 
   u8g2.sendBuffer();
   u8g2.clearBuffer();
