@@ -35,6 +35,7 @@
 // 2021/07/21 - FB V1.07 - Bug fix on GMT and add histo memorization after reboot
 // 2021/08/28 - FB V1.08 - Bug fix on NTP
 // 2021/10/03 - FB V1.09 - Change water sensor pin D4 to D6 and add POST request
+// 2022/12/09 - FB V1.10 - Change AsyncWiFiManager to ESPAsync_WiFiManager library
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -45,8 +46,10 @@
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #endif
+#include <ESPAsyncUDP.h>
 #include <ESPAsyncWebServer.h>
-#include <ESPAsyncWiFiManager.h>
+#include <ESPAsyncDNSServer.h>
+#include <ESPAsync_WiFiManager.h>
 #include <ESPDateTime.h>
 #include <LittleFS.h>
 #include <U8g2lib.h>
@@ -70,7 +73,7 @@
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.9"
+#define VERSION "1.1.0"
 #define PWD_OTA "fumeebleue"
 
 
@@ -137,7 +140,7 @@ String erreur_config = "";
 String startup_date = "";
 
 AsyncWebServer server(80);
-DNSServer dns;
+AsyncDNSServer dns;
 WiFiClient espClient;
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 PubSubClient client_mqtt(espClient);
@@ -761,7 +764,7 @@ void setup()
   }
 
   //----------------------------------------------------WIFI
-  AsyncWiFiManager wifiManager(&server,&dns);
+  ESPAsync_WiFiManager wifiManager(&server,&dns);
   if ( digitalRead(BP_WIFI) == LOW ) { // --------------Reset WIfi
     Serial.println("Reset Wifi settings");
     u8g2.setFont(u8g2_font_fub17_tf);
