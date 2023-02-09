@@ -24,17 +24,18 @@
 //   _| |  |   ` \    -_)   -_)    _ \  |   -_)  |  |   -_)     
 //  _| \_,_| _|_|_| \___| \___|   ___/ _| \___| \_,_| \___|  
 //--------------------------------------------------------------------    
-// 2020/04/03 - FB V1.00
-// 2020/07/13 - FB V1.01 - NTP fix
-// 2020/09/16 - FB V1.01 - LittleFS implementation
-// 2021/03/22 - FB V1.02 - Bug fix on getDatewithDLS
-// 2021/03/31 - FB V1.03 - Add startup date and current date into index.html
-// 2021/04/09 - FB V1.04 - date bugfix ans add timezone into index.html
-// 2021/05/06 - FB V1.05 - Change volume/flow precision (2 digits after the decimal point)
-// 2021/06/30 - FB V1.06 - Bug fix on check continuous consumption
-// 2021/07/21 - FB V1.07 - Bug fix on GMT and add histo memorization after reboot
-// 2021/08/28 - FB V1.08 - Bug fix on NTP
-// 2021/10/03 - FB V1.09 - Change water sensor pin D4 to D6 and add POST request
+// 2020/04/03 - FB V1.0.0
+// 2020/07/13 - FB V1.0.1 - NTP fix
+// 2020/09/16 - FB V1.0.1 - LittleFS implementation
+// 2021/03/22 - FB V1.0.2 - Bug fix on getDatewithDLS
+// 2021/03/31 - FB V1.0.3 - Add startup date and current date into index.html
+// 2021/04/09 - FB V1.0.4 - date bugfix ans add timezone into index.html
+// 2021/05/06 - FB V1.0.5 - Change volume/flow precision (2 digits after the decimal point)
+// 2021/06/30 - FB V1.0.6 - Bug fix on check continuous consumption
+// 2021/07/21 - FB V1.0.7 - Bug fix on GMT and add histo memorization after reboot
+// 2021/08/28 - FB V1.0.8 - Bug fix on NTP
+// 2021/10/03 - FB V1.0.9 - Change water sensor pin D4 to D6 and add POST request
+// 2022/02/08 - FB V1.0.10 - Bug fix ESPAsyncWiFiManager forgets data after reboot 
 //--------------------------------------------------------------------
 #include <Arduino.h>
 
@@ -70,7 +71,7 @@
 #define DEFAULT_PORT_MQTT 1883
 #define MAX_BUFFER      32
 #define MAX_BUFFER_URL  64
-#define VERSION "1.0.9"
+#define VERSION "1.0.10"
 #define PWD_OTA "fumeebleue"
 
 
@@ -761,6 +762,7 @@ void setup()
   }
 
   //----------------------------------------------------WIFI
+  WiFi.persistent(true); 
   AsyncWiFiManager wifiManager(&server,&dns);
   if ( digitalRead(BP_WIFI) == LOW ) { // --------------Reset WIfi
     Serial.println("Reset Wifi settings");
@@ -774,7 +776,7 @@ void setup()
   WiFi.hostname(module_name);
   wifiManager.setMinimumSignalQuality(10);
   wifiManager.setConfigPortalTimeout(360);
-  wifiManager.autoConnect("FumeeBleue");
+  wifiManager.autoConnect();
   
   //----------------------------------------------------SERVER
   loadPages();
